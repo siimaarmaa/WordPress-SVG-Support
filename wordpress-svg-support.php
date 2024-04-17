@@ -1,3 +1,14 @@
+<?php
+
+/*
+Plugin Name: Wordpress SVG support
+Plugin URI: https://www.aarmaa.ee
+Description:  Allows SVG format for Wordpress
+Author: Siim Aarmaa | Aarmaa
+Version: 1.0
+Author URI: https://www.aarmaa.ee
+*/
+
 // Allow SVG
 add_filter( 'wp_check_filetype_and_ext', function($data, $file, $filename, $mimes) {
 

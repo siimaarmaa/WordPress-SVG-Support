@@ -9,9 +9,6 @@ Version: 1.0
 Author URI: https://www.aarmaa.ee
 */
 
-// Include the SVG sanitization library
-require_once plugin_dir_path(__FILE__) . 'svg-sanitizer.php';
-
 // Allow SVG
 add_filter('wp_check_filetype_and_ext', function($data, $file, $filename, $mimes) {
     global $wp_version;
@@ -44,16 +41,21 @@ function fix_svg() {
 }
 add_action('admin_head', 'fix_svg');
 
+// Basic SVG validation function
+function validate_svg($svg_content) {
+    // Basic validation to check if the file contains '<svg'
+    if (strpos($svg_content, '<svg') !== false) {
+        return true;
+    }
+    return false;
+}
+
 function sanitize_svg($file) {
     if ($file['type'] === 'image/svg+xml') {
-        $svg_sanitizer = new enshrined\svgSanitize\Sanitizer();
-        $dirty_svg = file_get_contents($file['tmp_name']);
-        $clean_svg = $svg_sanitizer->sanitize($dirty_svg);
-        if ($clean_svg) {
-            file_put_contents($file['tmp_name'], $clean_svg);
-        } else {
-            // If sanitization fails, treat it as an invalid file
-            $file['error'] = 'SVG file sanitization failed.';
+        $svg_content = file_get_contents($file['tmp_name']);
+        if (!validate_svg($svg_content)) {
+            // If validation fails, treat it as an invalid file
+            $file['error'] = 'Invalid SVG file.';
         }
     }
     return $file;

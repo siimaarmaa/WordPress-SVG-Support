@@ -4,13 +4,35 @@ Plugin Name: WordPress SVG Support (Secure)
 Plugin URI: https://www.aarmaa.ee
 Description: Allows secure SVG format for WordPress
 Author: Siim Aarmaa | Aarmaa
-Version: 1.2-secure
+Version: 1.3-secure
 Author URI: https://www.aarmaa.ee
 */
 
+// Global flag
+$GLOBALS['svg_support_sanitizer_ok'] = false;
+
+/**
+ * Check if sanitizer is available
+ */
+function svg_support_check_sanitizer() {
+    $autoload = ABSPATH . 'vendor/autoload.php';
+
+    if (!file_exists($autoload)) {
+        return false;
+    }
+
+    require_once $autoload;
+
+    return class_exists(\enshrined\svgSanitize\Sanitizer::class);
+}
+add_action('init', function () {
+    $GLOBALS['svg_support_sanitizer_ok'] = svg_support_check_sanitizer();
+});
+
 // Allow SVG file type (restricted to Admins + Editors)
 add_filter('upload_mimes', function ($mimes) {
-    if (current_user_can('manage_options') || current_user_can('edit_others_posts')) {
+    if ((current_user_can('manage_options') || current_user_can('edit_others_posts'))
+        && $GLOBALS['svg_support_sanitizer_ok']) {
         $mimes['svg'] = 'image/svg+xml';
     }
     return $mimes;
@@ -36,28 +58,13 @@ add_action('admin_head', function () {
     </style>';
 });
 
-// Global flag for sanitizer availability
-$GLOBALS['svg_support_sanitizer_ok'] = false;
-
-// Secure SVG sanitization with fallback protection
+// Secure SVG sanitization
 function secure_sanitize_svg($file) {
     if ($file['type'] === 'image/svg+xml') {
-        $autoload = ABSPATH . 'vendor/autoload.php';
-
-        if (!file_exists($autoload)) {
-            $file['error'] = 'SVG uploads are disabled: missing sanitizer library.';
-            return $file;
-        }
-
-        require_once $autoload;
-
-        if (!class_exists(\enshrined\svgSanitize\Sanitizer::class)) {
+        if (!$GLOBALS['svg_support_sanitizer_ok']) {
             $file['error'] = 'SVG uploads are disabled: sanitizer not available.';
             return $file;
         }
-
-        // Mark sanitizer as available
-        $GLOBALS['svg_support_sanitizer_ok'] = true;
 
         $sanitizer = new \enshrined\svgSanitize\Sanitizer();
 
@@ -74,13 +81,15 @@ function secure_sanitize_svg($file) {
 }
 add_filter('wp_handle_upload_prefilter', 'secure_sanitize_svg');
 
-// Show admin notice if sanitizer is missing (dismissible)
+// Show admin notice if sanitizer missing (dismissible)
 add_action('admin_notices', function () {
     if (!current_user_can('manage_options')) {
         return; // Only admins need this notice
     }
 
-    if (!$GLOBALS['svg_support_sanitizer_ok'] && !get_user_meta(get_current_user_id(), 'dismiss_svg_notice', true)) {
+    // Only show if sanitizer unavailable
+    if (!$GLOBALS['svg_support_sanitizer_ok']
+        && !get_user_meta(get_current_user_id(), 'dismiss_svg_notice', true)) {
         $dismiss_url = wp_nonce_url(add_query_arg('dismiss_svg_notice', '1'), 'dismiss_svg_notice');
         echo '<div class="notice notice-error is-dismissible">
             <p><strong>WordPress SVG Support (Secure):</strong> 
